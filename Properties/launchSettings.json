@@ -1,0 +1,14 @@
+{
+  "profiles": {
+    "WordCountWorker": {
+      "commandName": "Project",
+      "environmentVariables": {
+        "RabbitMqHost": "localhost",
+        "RabbitMqUser": "admin",
+        "RabbitMqPass": "demo",
+        "RabbitMqPort": "5672",
+        "ASPNETCORE_URLS": "http://localhost:5000"
+      }
+    }
+  }
+}
