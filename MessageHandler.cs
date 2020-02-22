@@ -20,68 +20,76 @@ namespace WordCountWorker
         public MessageHandler(ILogger<MessageHandler> logger)
         {
             _logger = logger;
-            _connection = GetConnection();
         }
 
         protected override Task ExecuteAsync(CancellationToken stoppingToken)
         {
-            using (var channel = _connection.CreateModel())
+            var t = new Task(async () =>
             {
-                var processor = new Processor();
+                _connection = await GetConnection();
 
-                channel.ExchangeDeclare(Constants.ArticlesExchange, ExchangeType.Fanout);
-                var queueName = channel.QueueDeclare().QueueName;
-                channel.QueueBind(queueName, Constants.ArticlesExchange, Constants.RoutingKey);
-                Console.WriteLine("LISTENING");
-                var consumer = new EventingBasicConsumer(channel);
-                consumer.Received += (model, e) =>
+                using (var channel = _connection.CreateModel())
                 {
-                    var bytes = e.Body;
-                    var msg = JsonConvert.DeserializeObject<BusinessMessage>(Encoding.UTF8.GetString(bytes));
-                    processor.Process(msg);
-                };
-                channel.BasicConsume(queueName, autoAck: true, consumer);
+                    var processor = new Processor();
 
-                while (!stoppingToken.IsCancellationRequested)
-                {
+                    channel.ExchangeDeclare(Constants.ArticlesExchange, ExchangeType.Fanout);
+                    var queueName = channel.QueueDeclare().QueueName;
+                    channel.QueueBind(queueName, Constants.ArticlesExchange, Constants.RoutingKey);
+                    var consumer = new EventingBasicConsumer(channel);
+                    consumer.Received += (model, e) =>
+                    {
+                        var bytes = e.Body;
+                        var msg = JsonConvert.DeserializeObject<BusinessMessage>(Encoding.UTF8.GetString(bytes));
+                        processor.Process(msg);
+                    };
+                    channel.BasicConsume(queueName, autoAck: true, consumer);
 
+                    while (!stoppingToken.IsCancellationRequested)
+                    {
+
+                    }
                 }
-
-                Console.WriteLine("gracefully exited");
-                return Task.CompletedTask;
-            }
+            });
+            t.Start();
+            return t;
         }
 
-        private IConnection GetConnection()
+        private async Task<IConnection> GetConnection()
         {
-            var factory = new ConnectionFactory()
-            {
-                HostName = Environment.GetEnvironmentVariable(Constants.RabbitMqHost),
-                Port = int.Parse(Environment.GetEnvironmentVariable(Constants.RabbitMqPort)),
-                UserName = Environment.GetEnvironmentVariable(Constants.RabbitMqUser),
-                Password = Environment.GetEnvironmentVariable(Constants.RabbitMqPass),
-            };
+            return await Task.Run(async () =>
+             {
+                 var factory = new ConnectionFactory()
+                 {
+                     HostName = Environment.GetEnvironmentVariable(Constants.RabbitMqHost),
+                     Port = int.Parse(Environment.GetEnvironmentVariable(Constants.RabbitMqPort)),
+                     UserName = Environment.GetEnvironmentVariable(Constants.RabbitMqUser),
+                     Password = Environment.GetEnvironmentVariable(Constants.RabbitMqPass),
+                 };
 
-            int retriesLeft = 6;
-            while (true)
-            {
-                retriesLeft--;
-                try
-                {
-                    var connection = factory.CreateConnection();
-                    return connection;
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogWarning($"connect to queue failed: {ex.Message}");
-                    if (retriesLeft == 0)
-                    {
-                        _logger.LogError("no retries left");
-                        throw;
-                    }
-                    Thread.Sleep(TimeSpan.FromSeconds(2).Milliseconds);
-                }
-            }
+
+                 var end = DateTime.UtcNow.AddMinutes(3);
+                 Exception toLog = null;
+                 while (DateTime.UtcNow < end)
+                 {
+                     try
+                     {
+                         var connection = factory.CreateConnection();
+                         return connection;
+                     }
+                     catch (Exception ex)
+                     {
+                         toLog = ex;
+                         _logger.LogWarning($"connect to queue failed: {ex.Message}");
+                     }
+                     await Task.Delay((int)TimeSpan.FromSeconds(2).TotalMilliseconds);
+                 }
+                 if (toLog != null)
+                 {
+                     throw toLog;
+                 }
+                 throw new Exception("no retries left");
+
+             });
         }
 
         public override void Dispose()

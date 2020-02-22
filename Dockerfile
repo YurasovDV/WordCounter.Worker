@@ -2,7 +2,7 @@
 FROM mcr.microsoft.com/dotnet/core/sdk:3.1 AS build-env
 WORKDIR /src
 COPY ["WordCounter.Worker.csproj", "."]
-COPY ["../WordCounter.Common/WordCounter.Common.csproj", "."]
+COPY ["WordCounter.Common/WordCounter.Common.csproj", "./WordCounter.Common/"]
 RUN dotnet restore
 COPY . .
 RUN dotnet publish -c Release -o /app
