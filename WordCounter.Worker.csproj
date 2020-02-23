@@ -22,4 +22,8 @@
     <ProjectReference Include="WordCounter.Common\WordCounter.Common.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Folder Include="DAL\" />
+  </ItemGroup>
+
 </Project>

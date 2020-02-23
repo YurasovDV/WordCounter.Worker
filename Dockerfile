@@ -16,4 +16,11 @@ ENV RabbitMqPort 5672
 ENV RabbitMqUser admin
 ENV RabbitMqPass demo
 
+ENV DbHost db
+ENV DbPort 5432
+ENV DbUser admin
+ENV DbPass demo
+ENV Db INCORRECT
+
+
 ENTRYPOINT ["dotnet", "WordCounter.Worker.dll"]

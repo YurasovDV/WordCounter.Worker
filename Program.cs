@@ -2,8 +2,9 @@
 using Microsoft.Extensions.Hosting;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
+using WordCounter.Common;
 
-namespace WordCountWorker
+namespace WordCounter.Worker
 {
     class Program
     {
@@ -12,9 +13,11 @@ namespace WordCountWorker
             var hostBuilder = new HostBuilder()
            .ConfigureServices((hostContext, services) =>
            {
+               services.AddSingleton<IEnvironmentFacade, EnvironmentFacade>();
+               services.AddSingleton<Connector, Connector>();
                services.AddHostedService<MessageHandler>();
-            })
-           .ConfigureLogging(logBuilder => 
+           })
+           .ConfigureLogging(logBuilder =>
            {
                logBuilder.ClearProviders();
                logBuilder.AddConsole();

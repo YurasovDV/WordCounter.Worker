@@ -9,40 +9,39 @@ using System.Threading;
 using System.Threading.Tasks;
 using WordCounter.Common;
 
-namespace WordCountWorker
+namespace WordCounter.Worker
 {
     public class MessageHandler : BackgroundService
     {
         private bool _disposed = false;
-        private IConnection _connection;
         private readonly ILogger<MessageHandler> _logger;
+        private readonly IEnvironmentFacade _environment;
+        private readonly Connector _connector;
+        private IConnection _queueconnection;
+        private EventingBasicConsumer _consumer;
 
-        public MessageHandler(ILogger<MessageHandler> logger)
+        public MessageHandler(ILogger<MessageHandler> logger, IEnvironmentFacade environment, Connector connector)
         {
             _logger = logger;
+            _environment = environment;
+            _connector = connector;
         }
 
         protected override Task ExecuteAsync(CancellationToken stoppingToken)
         {
-            var t = new Task(async () =>
+            var t = new Task(() =>
             {
-                _connection = await GetConnection();
-
-                using (var channel = _connection.CreateModel())
+                _queueconnection = GetConnection();
+                WaitForDb();
+                using (var channel = _queueconnection.CreateModel())
                 {
-                    var processor = new Processor();
-
                     channel.ExchangeDeclare(Constants.ArticlesExchange, ExchangeType.Fanout);
                     var queueName = channel.QueueDeclare().QueueName;
                     channel.QueueBind(queueName, Constants.ArticlesExchange, Constants.RoutingKey);
-                    var consumer = new EventingBasicConsumer(channel);
-                    consumer.Received += (model, e) =>
-                    {
-                        var bytes = e.Body;
-                        var msg = JsonConvert.DeserializeObject<BusinessMessage>(Encoding.UTF8.GetString(bytes));
-                        processor.Process(msg);
-                    };
-                    channel.BasicConsume(queueName, autoAck: true, consumer);
+
+                    _consumer = new EventingBasicConsumer(channel);
+                    _consumer.Received += Handle;
+                    channel.BasicConsume(queueName, autoAck: true, _consumer);
 
                     while (!stoppingToken.IsCancellationRequested)
                     {
@@ -54,51 +53,37 @@ namespace WordCountWorker
             return t;
         }
 
-        private async Task<IConnection> GetConnection()
+
+        private void Handle(object sender, BasicDeliverEventArgs e)
         {
-            return await Task.Run(async () =>
-             {
-                 var factory = new ConnectionFactory()
-                 {
-                     HostName = Environment.GetEnvironmentVariable(Constants.RabbitMqHost),
-                     Port = int.Parse(Environment.GetEnvironmentVariable(Constants.RabbitMqPort)),
-                     UserName = Environment.GetEnvironmentVariable(Constants.RabbitMqUser),
-                     Password = Environment.GetEnvironmentVariable(Constants.RabbitMqPass),
-                 };
+            var bytes = e.Body;
+            var msg = JsonConvert.DeserializeObject<BusinessMessage>(Encoding.UTF8.GetString(bytes));
+            var _processor = new WordCounterProcessor();
+            _processor.Process(msg);
+        }
 
+        private void WaitForDb()
+        {
+            _connector.EnsureDbIsUp(_logger, _environment.BuildDbSettings());
+        }
 
-                 var end = DateTime.UtcNow.AddMinutes(3);
-                 Exception toLog = null;
-                 while (DateTime.UtcNow < end)
-                 {
-                     try
-                     {
-                         var connection = factory.CreateConnection();
-                         return connection;
-                     }
-                     catch (Exception ex)
-                     {
-                         toLog = ex;
-                         _logger.LogWarning($"connect to queue failed: {ex.Message}");
-                     }
-                     await Task.Delay((int)TimeSpan.FromSeconds(2).TotalMilliseconds);
-                 }
-                 if (toLog != null)
-                 {
-                     throw toLog;
-                 }
-                 throw new Exception("no retries left");
-
-             });
+        private IConnection GetConnection()
+        {
+            return _connector.ConnectToQueue(_logger, _environment.BuildQueueSettings());
         }
 
         public override void Dispose()
         {
             if (!_disposed)
             {
-                if (_connection != null)
+                if (_consumer != null)
                 {
-                    _connection.Dispose();
+                    _consumer.Received -= Handle;
+                }
+
+                if (_queueconnection != null)
+                {
+                    _queueconnection.Dispose();
                 }
                 base.Dispose();
             }
