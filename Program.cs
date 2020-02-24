@@ -3,6 +3,7 @@ using Microsoft.Extensions.Hosting;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using WordCounter.Common;
+using WordCounter.Worker.DAL;
 
 namespace WordCounter.Worker
 {
@@ -14,8 +15,10 @@ namespace WordCounter.Worker
            .ConfigureServices((hostContext, services) =>
            {
                services.AddSingleton<IEnvironmentFacade, EnvironmentFacade>();
+               services.AddTransient<IWordCountersRepository, WordCountersRepository>();
                services.AddSingleton<Connector, Connector>();
                services.AddHostedService<MessageHandler>();
+               services.AddDbContext<CountResultsContext>();
            })
            .ConfigureLogging(logBuilder =>
            {

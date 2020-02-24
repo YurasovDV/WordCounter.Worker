@@ -1,23 +1,19 @@
 ﻿using System;
 using WordCounter.Common;
+using WordCounter.Worker.DAL;
 
 namespace WordCounter.Worker
 {
-    public class WordCounterProcessor : BaseProcessor<CountResult>
+    public class WordCounterProcessor : BaseProcessor<CountResultRow>
     {
-        public WordCounterProcessor()
-        {
-
-        }
-
-        public override OperationResult<CountResult> Process(BusinessMessage msg)
+        public override OperationResult<CountResultRow> Process(BusinessMessage msg)
         {
             if (msg == null)
             {
                 throw new ArgumentNullException(nameof(msg));
             }
             var count = GetCount(msg.Content);
-            return OperationResult<CountResult>.Success(new CountResult() { CorrelationId = msg.CorrelationId, WordCount = count });
+            return OperationResult<CountResultRow>.Success(new CountResultRow() { CorrelationId = msg.CorrelationId, WordCount = count });
         }
 
         private int GetCount(string content)

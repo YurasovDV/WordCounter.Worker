@@ -20,7 +20,7 @@ ENV DbHost db
 ENV DbPort 5432
 ENV DbUser admin
 ENV DbPass demo
-ENV Db INCORRECT
+ENV Db counters
 
 
 ENTRYPOINT ["dotnet", "WordCounter.Worker.dll"]

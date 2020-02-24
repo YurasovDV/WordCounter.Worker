@@ -11,7 +11,7 @@
         "DbPort": "5432",
         "DbUser": "postgres",
         "DbPass": "postgres",
-        "Db": "INCORRECT",
+        "Db": "counters",
         "ASPNETCORE_URLS": "http://localhost:5000"
       }
     }
