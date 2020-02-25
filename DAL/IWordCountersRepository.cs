@@ -1,4 +1,6 @@
-﻿namespace WordCounter.Worker.DAL
+﻿using WordCounter.Common;
+
+namespace WordCounter.Worker.DAL
 {
     public interface IWordCountersRepository
     {

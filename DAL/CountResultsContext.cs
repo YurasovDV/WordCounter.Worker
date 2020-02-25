@@ -18,6 +18,8 @@ namespace WordCounter.Worker.DAL
 
         public DbSet<CountResultRow> CountResults { get; set; }
 
+        public DbSet<CountRequest> CountRequests { get; set; }
+
         public IEnvironmentFacade EnvironmentFacade { get; }
     }
 }
