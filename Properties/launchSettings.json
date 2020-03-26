@@ -12,7 +12,10 @@
         "DbUser": "postgres",
         "DbPass": "postgres",
         "Db": "counters",
-        "ASPNETCORE_URLS": "http://localhost:5000"
+        "ASPNETCORE_URLS": "http://localhost:5000",
+        "ElasticHost": "elasticsearch",
+        "ElasticPort": "9200",
+        "ElasticIndex": "ApiWorkerIndex"
       }
     }
   }

@@ -1,6 +1,6 @@
-﻿using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Hosting;
+﻿using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Nest;
 using Newtonsoft.Json;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
@@ -20,15 +20,17 @@ namespace WordCounter.Worker
         private readonly IEnvironmentFacade _environment;
         private readonly Connector _connector;
         private readonly IWordCountersRepository _wordCountersRepository;
+        private readonly IElasticClient _elasticClient;
         private IConnection _queueconnection;
         private EventingBasicConsumer _consumer;
 
-        public MessageHandler(ILogger<MessageHandler> logger, IEnvironmentFacade environment, Connector connector, IWordCountersRepository wordCountersRepository)
+        public MessageHandler(ILogger<MessageHandler> logger, IEnvironmentFacade environment, Connector connector, IWordCountersRepository wordCountersRepository, IElasticClient elasticClient)
         {
             _logger = logger;
             _environment = environment;
             _connector = connector;
             _wordCountersRepository = wordCountersRepository;
+            _elasticClient = elasticClient;
         }
 
         protected override Task ExecuteAsync(CancellationToken stoppingToken)
@@ -40,6 +42,8 @@ namespace WordCounter.Worker
                 _logger.LogInformation("WordCounter.Worker: connected to queue");
                 _wordCountersRepository.WaitForDb();
                 _logger.LogInformation("WordCounter.Worker: connected to db");
+                EnsureElasticIsUp();
+                _logger.LogInformation("WordCounter.Worker: connected to elastic");
                 using (var channel = _queueconnection.CreateModel())
                 {
                     channel.ExchangeDeclare(Constants.ArticlesExchange, ExchangeType.Fanout);
@@ -63,6 +67,24 @@ namespace WordCounter.Worker
             return t;
         }
 
+        private void EnsureElasticIsUp()
+        {
+            bool ping()
+            {
+                var response = _elasticClient.Search<BusinessMessage>(spec => spec
+                 .From(0)
+                 .Size(1)
+                 .Query(q => q.MatchAll()));
+
+                if (response.IsValid)
+                {
+                    return true;
+                }
+                return false;
+            }
+
+            _connector.EnsureIsUp(_logger, _environment.BuildElasticSettings(), ping);
+        }
 
         private void Handle(object sender, BasicDeliverEventArgs e)
         {
@@ -76,6 +98,13 @@ namespace WordCounter.Worker
                 if (processResult.Status == OperationStatus.Success)
                 {
                     _wordCountersRepository.Create(new CountResultRow() { CorrelationId = msg.CorrelationId, WordCount = processResult.Data.WordCount });
+                    var addToIndexInBackground = new Task(
+                        () => { 
+                            _elasticClient.IndexDocument<BusinessMessage>(msg); 
+                        })
+                        .ContinueWith(finished => _logger.LogError(finished.Exception?.Message), TaskContinuationOptions.OnlyOnFaulted);
+                    addToIndexInBackground.Start();
+                    
                 }
                 else
                 {
@@ -109,7 +138,6 @@ namespace WordCounter.Worker
                 {
                     _queueconnection.Dispose();
                 }
-                // _wordCountersRepository
                 base.Dispose();
             }
         }

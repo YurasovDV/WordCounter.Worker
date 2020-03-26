@@ -22,5 +22,8 @@ ENV DbUser admin
 ENV DbPass demo
 ENV Db counters
 
+ENV ElasticHost elasticsearch
+ENV ElasticPort 9200
+ENV ElasticIndex ApiWorkerIndex
 
 ENTRYPOINT ["dotnet", "WordCounter.Worker.dll"]
